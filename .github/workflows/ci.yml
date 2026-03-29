@@ -46,14 +46,13 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install ruff
+        run: pip install ruff -r requirements.txt
 
       - name: Lint with ruff
         run: ruff check agent/ backend/ kg/ mcp_server/ scripts/
 
       - name: Check imports (no relative import errors)
         run: |
-          pip install fastapi uvicorn pydantic python-dotenv litellm fastmcp httpx
           python -c "from agent import director, config, consistency, logger, tools; print('agent OK')"
           python -c "from kg import schema, crud, client; print('kg OK')"
           python -c "from backend import main; print('backend OK')"
