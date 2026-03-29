@@ -146,14 +146,14 @@ async def execute_tool(name: str, args: dict[str, Any]) -> str:
         return json.dumps({
             "active_foreshadowing": [{"name": t["name"], "description": t["description"]} for t in threads],
             "characters": [{"name": c["name"], "current_state": c.get("current_state", "")} for c in characters],
-            "locations": [{"name": l["name"], "atmosphere": l.get("atmosphere", "")} for l in locations],
+            "locations": [{"name": loc["name"], "atmosphere": loc.get("atmosphere", "")} for loc in locations],
             "factions": [{"name": f["name"]} for f in factions],
         }, ensure_ascii=False, indent=2)
 
     elif name == "list_locations":
         locs = await crud.list_locations(args["project_id"])
         return json.dumps(
-            [{"name": l["name"], "atmosphere": l.get("atmosphere", ""), "significance": l.get("significance", "")} for l in locs],
+            [{"name": loc["name"], "atmosphere": loc.get("atmosphere", ""), "significance": loc.get("significance", "")} for loc in locs],
             ensure_ascii=False, indent=2
         )
 

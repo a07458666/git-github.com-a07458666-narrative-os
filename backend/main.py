@@ -22,15 +22,15 @@ logging.getLogger("litellm").setLevel(logging.CRITICAL)
 logging.getLogger("litellm.litellm_core_utils").setLevel(logging.CRITICAL)
 os.environ.setdefault("LITELLM_LOG", "CRITICAL")
 
-from kg.client import init_schema, close
-from backend.routes.projects import router as projects_router
-from backend.routes.chapters import router as chapters_router
-from backend.routes.scenes import router as scenes_router
-from backend.routes.kg import router as kg_router
-from backend.routes.analysis import router as analysis_router
-from backend.routes.logs import router as logs_router
-from backend.routes.export import router as export_router
-from backend.websocket.handler import router as ws_router
+from kg.client import init_schema, close  # noqa: E402
+from backend.routes.projects import router as projects_router  # noqa: E402
+from backend.routes.chapters import router as chapters_router  # noqa: E402
+from backend.routes.scenes import router as scenes_router  # noqa: E402
+from backend.routes.kg import router as kg_router  # noqa: E402
+from backend.routes.analysis import router as analysis_router  # noqa: E402
+from backend.routes.logs import router as logs_router  # noqa: E402
+from backend.routes.export import router as export_router  # noqa: E402
+from backend.websocket.handler import router as ws_router  # noqa: E402
 
 
 @asynccontextmanager

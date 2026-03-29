@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import io
 import sys
 import logging
 from pathlib import Path
@@ -20,13 +19,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logging.getLogger("litellm").setLevel(logging.CRITICAL)
 logging.getLogger("litellm.litellm_core_utils").setLevel(logging.CRITICAL)
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # noqa: E402
 load_dotenv()
 
-from kg.client import init_schema, close
-from kg import crud
-from agent.director import StoryDirectorAgent
-from agent.logger import AgentLogger
+from kg.client import init_schema, close  # noqa: E402
+from kg import crud  # noqa: E402
+from agent.director import StoryDirectorAgent  # noqa: E402
+from agent.logger import AgentLogger  # noqa: E402
 
 
 # ─────────────────────────────────────────────
@@ -228,10 +227,10 @@ async def run_session(project_id: str) -> None:
                 print_info("Paste your JSON (end with a blank line):")
                 lines = []
                 while True:
-                    l = input()
-                    if l == "":
+                    line = input()
+                    if line == "":
                         break
-                    lines.append(l)
+                    lines.append(line)
                 custom_json = "\n".join(lines)
                 applied = await agent.apply_kg_updates(custom_json)
                 for line in applied:

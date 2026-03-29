@@ -170,9 +170,9 @@ async def upsert_character_relationship(edge: CharacterRelationshipEdge) -> dict
     rel_type = edge.type.upper()
     async with driver.session() as session:
         result = await session.run(
-            f"""
-            MATCH (a:Character {{id: $src}}), (b:Character {{id: $tgt}})
-            MERGE (a)-[r:RELATES_TO {{source_id: $src, target_id: $tgt}}]->(b)
+            """
+            MATCH (a:Character {id: $src}), (b:Character {id: $tgt})
+            MERGE (a)-[r:RELATES_TO {source_id: $src, target_id: $tgt}]->(b)
             SET r += $props, r.rel_type = $rel_type
             RETURN properties(r) AS rel
             """,

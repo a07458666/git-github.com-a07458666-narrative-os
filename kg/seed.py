@@ -259,7 +259,7 @@ async def print_summary(project_id: str) -> None:
     print(f"  Project: {project['name']} ({project_id[:8]}...)")
     print(f"{'='*50}")
     print(f"  Characters ({len(characters)}): {', '.join(c['name'] for c in characters)}")
-    print(f"  Locations  ({len(locations)}): {', '.join(l['name'] for l in locations)}")
+    print(f"  Locations  ({len(locations)}): {', '.join(loc['name'] for loc in locations)}")
     print(f"  Factions   ({len(factions)}): {', '.join(f['name'] for f in factions)}")
     print(f"  Active plot threads ({len(threads)}):")
     for t in threads:

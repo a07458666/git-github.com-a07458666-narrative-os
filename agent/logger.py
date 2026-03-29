@@ -96,7 +96,7 @@ class AgentLogger:
         if not self._log_path.exists():
             return f"Session {self.session_id}: no logs yet."
         with self._log_path.open(encoding="utf-8") as f:
-            entries = [json.loads(l) for l in f if l.strip()]
+            entries = [json.loads(line) for line in f if line.strip()]
         total_tokens = sum(e.get("tokens_in", 0) + e.get("tokens_out", 0) for e in entries)
         actions = [e["action"] for e in entries]
         return (

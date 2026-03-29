@@ -10,13 +10,12 @@ Tool groups:
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
 from fastmcp import FastMCP
 
 from kg import crud
 from kg.client import init_schema
-from agent.config import chat, stream_chat
+from agent.config import chat
 
 mcp = FastMCP("NarrativeOS")
 
@@ -106,7 +105,7 @@ async def get_chapter_context(project_id: str, chapter_title: str = "") -> str:
             for t in threads
         ],
         "characters": char_summary,
-        "locations": [{"name": l["name"], "atmosphere": l.get("atmosphere", "")} for l in locations],
+        "locations": [{"name": loc["name"], "atmosphere": loc.get("atmosphere", "")} for loc in locations],
         "factions": [{"name": f["name"], "ideology": f.get("ideology", "")} for f in factions],
     }
     return json.dumps(context, ensure_ascii=False, indent=2)
@@ -219,7 +218,7 @@ async def write_scene(
     # Find location details
     loc_detail = ""
     if location:
-        loc = next((l for l in locations if l["name"] == location), None)
+        loc = next((loc for loc in locations if loc["name"] == location), None)
         if loc:
             loc_detail = f"Location: {loc['name']}\n  Atmosphere: {loc.get('atmosphere', '')}\n"
 
@@ -331,7 +330,7 @@ async def check_consistency(scene_content: str, project_id: str) -> str:
             for c in characters
         ],
         "active_foreshadowing": [t["name"] for t in threads],
-        "locations": [l["name"] for l in locations],
+        "locations": [loc["name"] for loc in locations],
     }
 
     messages = [

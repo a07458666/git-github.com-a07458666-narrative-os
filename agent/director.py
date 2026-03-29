@@ -105,8 +105,8 @@ class StoryDirectorAgent:
                 for t in threads
             ],
             "locations": [
-                {"name": l["name"], "atmosphere": l.get("atmosphere", "")}
-                for l in locations
+                {"name": loc["name"], "atmosphere": loc.get("atmosphere", "")}
+                for loc in locations
             ],
             "factions": [
                 {"name": f["name"], "ideology": f.get("ideology", "")}
@@ -117,7 +117,7 @@ class StoryDirectorAgent:
         nodes = (
             [f"Character:{c['name']}" for c in characters]
             + ["PlotThreads:active"]
-            + [f"Location:{l['name']}" for l in locations]
+            + [f"Location:{loc['name']}" for loc in locations]
         )
         return context, nodes
 
@@ -185,7 +185,7 @@ class StoryDirectorAgent:
 
         loc_detail = ""
         if location:
-            loc = next((l for l in locations if l["name"] == location), None)
+            loc = next((loc for loc in locations if loc["name"] == location), None)
             if loc:
                 loc_detail = f"Location: {loc['name']} — {loc.get('atmosphere','')}\n"
 

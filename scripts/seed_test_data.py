@@ -18,8 +18,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from kg.client import init_schema, close
-from kg.seed import seed_all, print_summary
+from kg.client import init_schema, close  # noqa: E402
+from kg.seed import seed_all, print_summary  # noqa: E402
 
 
 async def main() -> None:

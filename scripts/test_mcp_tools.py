@@ -14,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
-from kg.client import init_schema, close
-from kg import crud
+from kg.client import init_schema, close  # noqa: E402
+from kg import crud  # noqa: E402
 
 
 async def get_project_id() -> str:
@@ -47,7 +47,7 @@ async def test_query_tools(pid: str) -> None:
     liya = await crud.get_character_by_name("莉雅", pid)
     if kael and liya:
         rel = await crud.get_character_relationship(kael["id"], liya["id"])
-        print(f"\n[get_character_relationship] 凱爾↔莉雅:")
+        print("\n[get_character_relationship] 凱爾↔莉雅:")
         if rel:
             print(f"  type={rel.get('rel_type','?')} trust={rel.get('trust_level','?')}")
             print(f"  true_face: {rel.get('true_face','')[:60]}")
@@ -62,7 +62,6 @@ async def test_llm_tools(pid: str) -> None:
         # suggest_scene_direction
         threads = await crud.list_active_plot_threads(pid)
         characters = await crud.list_characters(pid)
-        import json
         context_str = f"Active foreshadowing: {[t['name'] for t in threads]}\n"
         context_str += f"Characters: {[c['name'] + ' — ' + c.get('current_state','') for c in characters]}"
 
