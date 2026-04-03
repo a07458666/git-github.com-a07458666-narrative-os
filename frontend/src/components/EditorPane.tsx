@@ -57,6 +57,7 @@ export default function EditorPane() {
   const [showConsistency, setShowConsistency] = useState(false)
   const [checkLoading, setCheckLoading]     = useState(false)
   const [checkIssues, setCheckIssues]       = useState<object[]>([])
+  const [checkError, setCheckError]         = useState<string | null>(null)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const editor = useEditor({
@@ -132,16 +133,18 @@ export default function EditorPane() {
     setShowConsistency(true)
     setCheckLoading(true)
     setCheckIssues([])
+    setCheckError(null)
     try {
       const res = await fetch(`/api/projects/${projectId}/consistency`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scene_content: content }),
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setCheckIssues(data.issues ?? [])
     } catch {
-      setCheckIssues([])
+      setCheckError('一致性檢查失敗，請重試')
     } finally {
       setCheckLoading(false)
     }
@@ -202,7 +205,8 @@ export default function EditorPane() {
         <ConsistencyPanel
           issues={checkIssues as Parameters<typeof ConsistencyPanel>[0]['issues']}
           loading={checkLoading}
-          onDismiss={() => setShowConsistency(false)}
+          error={checkError}
+          onDismiss={() => { setShowConsistency(false); setCheckError(null) }}
         />
       )}
 

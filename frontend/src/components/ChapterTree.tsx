@@ -46,17 +46,21 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
   const [showNewForm, setShowNewForm] = useState(false)
   const [newTitle, setNewTitle]     = useState('')
   const [creating, setCreating]     = useState(false)
+  const [loadError, setLoadError]   = useState<string | null>(null)
+  const [sceneErrors, setSceneErrors] = useState<Record<string, string>>({})
   const newTitleRef                 = useRef<HTMLInputElement>(null)
 
   const { currentChapterId, currentSceneId, savedSignal,
           setCurrentSceneId, setCurrentChapterId, setEditorContent } = useSessionStore()
 
   // ── Load chapters ─────────────────────────────────────────
-  const loadChapters = () =>
-    fetch(`/api/projects/${projectId}/chapters`)
-      .then(r => r.json())
+  const loadChapters = () => {
+    setLoadError(null)
+    return fetch(`/api/projects/${projectId}/chapters`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
       .then(data => { if (Array.isArray(data)) setChapters(data.sort((a, b) => a.order - b.order)) })
-      .catch(() => {})
+      .catch(() => setLoadError('章節載入失敗'))
+  }
 
   useEffect(() => { loadChapters() }, [projectId]) // eslint-disable-line
 
@@ -68,11 +72,16 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
 
   // ── Load scenes for a chapter ─────────────────────────────
   const loadScenesFor = async (chapterId: string) => {
+    setSceneErrors(prev => { const next = { ...prev }; delete next[chapterId]; return next })
     try {
-      const data = await fetch(`/api/chapters/${chapterId}/scenes`).then(r => r.json())
+      const r = await fetch(`/api/chapters/${chapterId}/scenes`)
+      if (!r.ok) throw new Error()
+      const data = await r.json()
       if (Array.isArray(data))
         setScenes(prev => ({ ...prev, [chapterId]: data.sort((a: Scene, b: Scene) => a.order - b.order) }))
-    } catch {/* ignore */}
+    } catch {
+      setSceneErrors(prev => ({ ...prev, [chapterId]: '場景載入失敗' }))
+    }
   }
 
   // ── Toggle expansion ──────────────────────────────────────
@@ -165,7 +174,10 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
     <div style={st.wrap}>
       {/* ── Chapter list ─────────────────────────────────── */}
       <div style={st.list}>
-        {chapters.length === 0 && !showNewForm && (
+        {loadError && (
+          <div style={st.fetchError}>⚠ {loadError}</div>
+        )}
+        {!loadError && chapters.length === 0 && !showNewForm && (
           <div style={st.empty}>尚無章節</div>
         )}
 
@@ -261,7 +273,9 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
                   )}
 
                   {/* Scenes */}
-                  {chScenes.length === 0 ? (
+                  {sceneErrors[ch.id] ? (
+                    <div style={st.fetchError}>⚠ {sceneErrors[ch.id]}</div>
+                  ) : chScenes.length === 0 ? (
                     <div style={st.sceneEmpty}>尚無場景</div>
                   ) : (
                     chScenes.map(sc => {
@@ -343,6 +357,9 @@ const st: Record<string, React.CSSProperties> = {
   },
   empty: {
     fontSize: font.sizes.xs, color: T.textMuted, padding: '12px 16px',
+  },
+  fetchError: {
+    fontSize: font.sizes.xs, color: '#f87171', padding: '12px 16px',
   },
 
   // Chapter row
