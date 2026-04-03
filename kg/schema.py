@@ -59,6 +59,7 @@ class ChapterNode(BaseModel):
     order: int
     title: str
     outline: str = ""             # 章節大綱 (author's planning notes)
+    summary: str = ""             # AI-generated chapter summary
     tags: List[str] = []          # 章節標籤 e.g. ["開場", "艾拉", "廢墟"]
     pov_character: str = ""
     emotional_goal: str = ""

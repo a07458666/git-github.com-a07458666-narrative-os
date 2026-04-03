@@ -18,6 +18,7 @@ interface Chapter {
   status?: string
   pov_character?: string
   outline?: string
+  summary?: string
   tags?: string[]
 }
 
@@ -48,6 +49,7 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
   const [creating, setCreating]     = useState(false)
   const [loadError, setLoadError]   = useState<string | null>(null)
   const [sceneErrors, setSceneErrors] = useState<Record<string, string>>({})
+  const [summaryLoading, setSummaryLoading] = useState<Record<string, boolean>>({})
   const newTitleRef                 = useRef<HTMLInputElement>(null)
 
   const { currentChapterId, currentSceneId, savedSignal,
@@ -168,6 +170,22 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
     } catch {/* ignore */} finally { setCreating(false) }
   }
 
+  // ── Generate AI summary ───────────────────────────────────
+  const generateSummary = async (e: React.MouseEvent, ch: Chapter) => {
+    e.stopPropagation()
+    setSummaryLoading(prev => ({ ...prev, [ch.id]: true }))
+    try {
+      const res = await fetch(`/api/projects/${projectId}/chapters/${ch.id}/summary`, { method: 'POST' })
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setChapters(prev => prev.map(c => c.id === ch.id ? { ...c, summary: data.summary } : c))
+    } catch {
+      // leave existing summary intact on error; user can retry
+    } finally {
+      setSummaryLoading(prev => ({ ...prev, [ch.id]: false }))
+    }
+  }
+
   useEffect(() => { if (showNewForm) newTitleRef.current?.focus() }, [showNewForm])
 
   return (
@@ -211,6 +229,12 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
                   </span>
                 )}
                 <button style={st.editIcon} onClick={e => startEdit(e, ch)} title="編輯章節">✎</button>
+                <button
+                  style={{ ...st.editIcon, opacity: summaryLoading[ch.id] ? 0.4 : 0.6 }}
+                  onClick={e => generateSummary(e, ch)}
+                  disabled={summaryLoading[ch.id]}
+                  title="AI 生成摘要"
+                >{summaryLoading[ch.id] ? '…' : '✦'}</button>
               </div>
 
               {/* ── Inline edit form ─────────────────────── */}
@@ -263,6 +287,12 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
                 <div style={st.chBody}>
                   {ch.outline && (
                     <div style={st.outlineSnippet}>{ch.outline}</div>
+                  )}
+                  {ch.summary && (
+                    <div style={st.summarySnippet}>
+                      <span style={st.summaryLabel}>✦ AI 摘要</span>
+                      {ch.summary}
+                    </div>
                   )}
                   {tags.length > 0 && (
                     <div style={st.tagRow}>
@@ -397,6 +427,14 @@ const st: Record<string, React.CSSProperties> = {
     fontSize: font.sizes.xs, color: T.textMuted, lineHeight: '1.5',
     padding: '4px 10px 4px 0', whiteSpace: 'pre-wrap',
     borderLeft: `2px solid ${T.border}`, paddingLeft: 8, marginBottom: 6, marginTop: 2,
+  },
+  summarySnippet: {
+    fontSize: font.sizes.xs, color: T.textSecondary, lineHeight: '1.5',
+    borderLeft: `2px solid ${T.accent}`, paddingLeft: 8, marginBottom: 6,
+  },
+  summaryLabel: {
+    display: 'block', fontSize: 9, fontWeight: 700, color: T.accent,
+    textTransform: 'uppercase' as const, letterSpacing: '0.07em', marginBottom: 3,
   },
   tagRow: {
     display: 'flex', flexWrap: 'wrap' as const, gap: 4, marginBottom: 6,
