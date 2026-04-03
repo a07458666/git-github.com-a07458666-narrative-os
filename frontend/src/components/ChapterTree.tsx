@@ -15,6 +15,7 @@ interface Chapter {
   id: string
   title: string
   order: number
+  act_id?: string
   status?: string
   pov_character?: string
   outline?: string
@@ -30,6 +31,9 @@ interface Scene {
   emotional_tone?: string
 }
 
+interface Arc { id: string; name: string }
+interface Act { id: string; story_arc_id: string; order: number; name: string }
+
 interface Props {
   projectId: string
   onSelectChapter?: (chapterId: string) => void
@@ -42,7 +46,7 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
   const [scenes, setScenes]         = useState<Record<string, Scene[]>>({})
   const [expanded, setExpanded]     = useState<Set<string>>(new Set())
   const [editingId, setEditingId]   = useState<string | null>(null)
-  const [draft, setDraft]           = useState({ title: '', outline: '', tags: '', pov_character: '', status: 'draft' })
+  const [draft, setDraft]           = useState({ title: '', outline: '', tags: '', pov_character: '', status: 'draft', act_id: '' })
   const [saving, setSaving]         = useState(false)
   const [showNewForm, setShowNewForm] = useState(false)
   const [newTitle, setNewTitle]     = useState('')
@@ -50,12 +54,14 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
   const [loadError, setLoadError]   = useState<string | null>(null)
   const [sceneErrors, setSceneErrors] = useState<Record<string, string>>({})
   const [summaryLoading, setSummaryLoading] = useState<Record<string, boolean>>({})
+  const [arcs, setArcs]             = useState<Arc[]>([])
+  const [acts, setActs]             = useState<Act[]>([])  // flattened all acts across arcs
   const newTitleRef                 = useRef<HTMLInputElement>(null)
 
   const { currentChapterId, currentSceneId, savedSignal,
           setCurrentSceneId, setCurrentChapterId, setEditorContent } = useSessionStore()
 
-  // ── Load chapters ─────────────────────────────────────────
+  // ── Load chapters + arcs/acts ─────────────────────────────
   const loadChapters = () => {
     setLoadError(null)
     return fetch(`/api/projects/${projectId}/chapters`)
@@ -64,7 +70,25 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
       .catch(() => setLoadError('章節載入失敗'))
   }
 
-  useEffect(() => { loadChapters() }, [projectId]) // eslint-disable-line
+  const loadArcsAndActs = async () => {
+    try {
+      const arcData = await fetch(`/api/projects/${projectId}/arcs`).then(r => r.json())
+      if (!Array.isArray(arcData)) return
+      setArcs(arcData)
+      const allActs: Act[] = []
+      await Promise.all(
+        arcData.map((arc: Arc) =>
+          fetch(`/api/projects/${projectId}/arcs/${arc.id}/acts`)
+            .then(r => r.json())
+            .then((a: Act[]) => { if (Array.isArray(a)) allActs.push(...a) })
+            .catch(() => {})
+        )
+      )
+      setActs(allActs.sort((a, b) => a.order - b.order))
+    } catch {/* ignore */}
+  }
+
+  useEffect(() => { loadChapters(); loadArcsAndActs() }, [projectId]) // eslint-disable-line
 
   // ── When a scene is saved, reload scenes for current chapter ─
   useEffect(() => {
@@ -110,6 +134,7 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
       tags:          (ch.tags ?? []).join(', '),
       pov_character: ch.pov_character ?? '',
       status:        ch.status ?? 'draft',
+      act_id:        ch.act_id ?? '',
     })
   }
 
@@ -124,6 +149,7 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
         tags:          draft.tags.split(',').map(t => t.trim()).filter(Boolean),
         pov_character: draft.pov_character,
         status:        draft.status,
+        act_id:        draft.act_id || '',
       }
       const res = await fetch(`/api/projects/${projectId}/chapters/${chapterId}`, {
         method: 'PATCH',
@@ -188,6 +214,118 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
 
   useEffect(() => { if (showNewForm) newTitleRef.current?.focus() }, [showNewForm])
 
+  // ── Shared chapter row renderer ───────────────────────────
+  const renderChapter = (ch: Chapter) => {
+    const isActive  = ch.id === currentChapterId
+    const isOpen    = expanded.has(ch.id)
+    const isEditing = editingId === ch.id
+    const chScenes  = scenes[ch.id] ?? []
+    const tags      = ch.tags ?? []
+    return (
+      <div key={ch.id}>
+        <div
+          style={{
+            ...st.chRow,
+            background: isActive ? T.accentDim : 'transparent',
+            borderLeft: `2px solid ${isActive ? T.accent : 'transparent'}`,
+          }}
+          onClick={() => toggleChapter(ch)}
+        >
+          <span style={st.chevron}>{isOpen ? '▾' : '▸'}</span>
+          <span style={st.order}>Ch.{ch.order}</span>
+          <span style={{ ...st.chTitle, color: isActive ? T.accent : T.textSecondary }} title={ch.title}>
+            {ch.title}
+          </span>
+          {ch.status && ch.status !== 'draft' && (
+            <span style={{ ...st.statusBadge, color: ch.status === 'final' ? T.green : T.yellow }}>
+              {ch.status}
+            </span>
+          )}
+          <button style={st.editIcon} onClick={e => startEdit(e, ch)} title="編輯章節">✎</button>
+          <button
+            style={{ ...st.editIcon, opacity: summaryLoading[ch.id] ? 0.4 : 0.6 }}
+            onClick={e => generateSummary(e, ch)}
+            disabled={summaryLoading[ch.id]}
+            title="AI 生成摘要"
+          >{summaryLoading[ch.id] ? '…' : '✦'}</button>
+        </div>
+
+        {isEditing && (
+          <div style={st.editForm} onClick={e => e.stopPropagation()}>
+            <input style={{ ...inp, marginBottom: 6 }} value={draft.title} autoFocus
+              onChange={e => setDraft(d => ({ ...d, title: e.target.value }))} placeholder="章節標題" />
+            <textarea style={{ ...inp, resize: 'vertical', minHeight: 60, marginBottom: 6 }}
+              value={draft.outline} rows={3}
+              onChange={e => setDraft(d => ({ ...d, outline: e.target.value }))} placeholder="章節大綱…" />
+            <input style={{ ...inp, marginBottom: 6 }} value={draft.tags}
+              onChange={e => setDraft(d => ({ ...d, tags: e.target.value }))} placeholder="標籤（逗號分隔）" />
+            <input style={{ ...inp, marginBottom: 6 }} value={draft.pov_character}
+              onChange={e => setDraft(d => ({ ...d, pov_character: e.target.value }))} placeholder="POV 角色" />
+            <select style={{ ...inp, marginBottom: 6 }} value={draft.status}
+              onChange={e => setDraft(d => ({ ...d, status: e.target.value }))}>
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {acts.length > 0 && (
+              <select style={{ ...inp, marginBottom: 10 }} value={draft.act_id}
+                onChange={e => setDraft(d => ({ ...d, act_id: e.target.value }))}>
+                <option value="">── 未分配幕 ──</option>
+                {arcs.map(arc => (
+                  <optgroup key={arc.id} label={arc.name}>
+                    {acts.filter(a => a.story_arc_id === arc.id).map(act => (
+                      <option key={act.id} value={act.id}>Act {act.order}: {act.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            )}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button style={btn.primary} onClick={() => saveEdit(ch.id)} disabled={saving}>{saving ? '…' : '儲存'}</button>
+              <button style={btn.ghost} onClick={cancelEdit}>取消</button>
+            </div>
+          </div>
+        )}
+
+        {isOpen && !isEditing && (
+          <div style={st.chBody}>
+            {ch.outline && <div style={st.outlineSnippet}>{ch.outline}</div>}
+            {ch.summary && (
+              <div style={st.summarySnippet}>
+                <span style={st.summaryLabel}>✦ AI 摘要</span>
+                {ch.summary}
+              </div>
+            )}
+            {tags.length > 0 && (
+              <div style={st.tagRow}>
+                {tags.map(t => <span key={t} style={st.tag}>{t}</span>)}
+              </div>
+            )}
+            {sceneErrors[ch.id] ? (
+              <div style={st.fetchError}>⚠ {sceneErrors[ch.id]}</div>
+            ) : chScenes.length === 0 ? (
+              <div style={st.sceneEmpty}>尚無場景</div>
+            ) : (
+              chScenes.map(sc => {
+                const scActive = sc.id === currentSceneId
+                return (
+                  <div key={sc.id} style={{
+                    ...st.sceneRow,
+                    background: scActive ? T.greenDim + '60' : 'transparent',
+                    borderLeft: `2px solid ${scActive ? T.green : 'transparent'}`,
+                    color:      scActive ? T.green : T.textMuted,
+                  }} onClick={() => loadScene(sc, ch.id)}>
+                    <span style={st.sceneOrder}>#{sc.order}</span>
+                    <span style={st.sceneSummary}>{sc.summary || sc.emotional_tone || '場景'}</span>
+                    <button style={st.delBtn} onClick={e => deleteScene(e, sc, ch.id)} title="刪除場景">×</button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={st.wrap}>
       {/* ── Chapter list ─────────────────────────────────── */}
@@ -199,146 +337,44 @@ export default function ChapterTree({ projectId, onSelectChapter }: Props) {
           <div style={st.empty}>尚無章節</div>
         )}
 
-        {chapters.map(ch => {
-          const isActive  = ch.id === currentChapterId
-          const isOpen    = expanded.has(ch.id)
-          const isEditing = editingId === ch.id
-          const chScenes  = scenes[ch.id] ?? []
-          const tags      = ch.tags ?? []
-
+        {/* Arc → Act grouping headers (only shown when arcs exist) */}
+        {!loadError && arcs.length > 0 && (() => {
+          const chByAct: Record<string, Chapter[]> = {}
+          const unassigned: Chapter[] = []
+          for (const ch of chapters) {
+            if (ch.act_id) { (chByAct[ch.act_id] ??= []).push(ch) }
+            else unassigned.push(ch)
+          }
           return (
-            <div key={ch.id}>
-              {/* ── Chapter row ──────────────────────────── */}
-              <div
-                style={{
-                  ...st.chRow,
-                  background:  isActive ? T.accentDim : 'transparent',
-                  borderLeft:  `2px solid ${isActive ? T.accent : 'transparent'}`,
-                }}
-                onClick={() => toggleChapter(ch)}
-              >
-                <span style={st.chevron}>{isOpen ? '▾' : '▸'}</span>
-                <span style={st.order}>Ch.{ch.order}</span>
-                <span style={{ ...st.chTitle, color: isActive ? T.accent : T.textSecondary }}
-                  title={ch.title}>
-                  {ch.title}
-                </span>
-                {ch.status && ch.status !== 'draft' && (
-                  <span style={{ ...st.statusBadge, color: ch.status === 'final' ? T.green : T.yellow }}>
-                    {ch.status}
-                  </span>
-                )}
-                <button style={st.editIcon} onClick={e => startEdit(e, ch)} title="編輯章節">✎</button>
-                <button
-                  style={{ ...st.editIcon, opacity: summaryLoading[ch.id] ? 0.4 : 0.6 }}
-                  onClick={e => generateSummary(e, ch)}
-                  disabled={summaryLoading[ch.id]}
-                  title="AI 生成摘要"
-                >{summaryLoading[ch.id] ? '…' : '✦'}</button>
-              </div>
-
-              {/* ── Inline edit form ─────────────────────── */}
-              {isEditing && (
-                <div style={st.editForm} onClick={e => e.stopPropagation()}>
-                  <input
-                    style={{ ...inp, marginBottom: 6 }}
-                    value={draft.title}
-                    onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
-                    placeholder="章節標題"
-                    autoFocus
-                  />
-                  <textarea
-                    style={{ ...inp, resize: 'vertical', minHeight: 60, marginBottom: 6 }}
-                    value={draft.outline}
-                    onChange={e => setDraft(d => ({ ...d, outline: e.target.value }))}
-                    placeholder="章節大綱…"
-                    rows={3}
-                  />
-                  <input
-                    style={{ ...inp, marginBottom: 6 }}
-                    value={draft.tags}
-                    onChange={e => setDraft(d => ({ ...d, tags: e.target.value }))}
-                    placeholder="標籤（逗號分隔）"
-                  />
-                  <input
-                    style={{ ...inp, marginBottom: 6 }}
-                    value={draft.pov_character}
-                    onChange={e => setDraft(d => ({ ...d, pov_character: e.target.value }))}
-                    placeholder="POV 角色"
-                  />
-                  <select
-                    style={{ ...inp, marginBottom: 10 }}
-                    value={draft.status}
-                    onChange={e => setDraft(d => ({ ...d, status: e.target.value }))}
-                  >
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button style={btn.primary} onClick={() => saveEdit(ch.id)} disabled={saving}>
-                      {saving ? '…' : '儲存'}
-                    </button>
-                    <button style={btn.ghost} onClick={cancelEdit}>取消</button>
+            <>
+              {arcs.map(arc => {
+                const arcActs = acts.filter(a => a.story_arc_id === arc.id)
+                const hasContent = arcActs.some(a => (chByAct[a.id] ?? []).length > 0)
+                if (!hasContent && arcActs.length === 0) return null
+                return (
+                  <div key={arc.id}>
+                    <div style={st.arcHeader}>{arc.name}</div>
+                    {arcActs.map(act => (
+                      <div key={act.id}>
+                        <div style={st.actHeader}>Act {act.order} — {act.name}</div>
+                        {(chByAct[act.id] ?? []).map(ch => renderChapter(ch))}
+                      </div>
+                    ))}
                   </div>
+                )
+              })}
+              {unassigned.length > 0 && (
+                <div>
+                  <div style={st.arcHeader}>未分配章節</div>
+                  {unassigned.map(ch => renderChapter(ch))}
                 </div>
               )}
-
-              {/* ── Expanded: outline snippet + tags + scenes ─ */}
-              {isOpen && !isEditing && (
-                <div style={st.chBody}>
-                  {ch.outline && (
-                    <div style={st.outlineSnippet}>{ch.outline}</div>
-                  )}
-                  {ch.summary && (
-                    <div style={st.summarySnippet}>
-                      <span style={st.summaryLabel}>✦ AI 摘要</span>
-                      {ch.summary}
-                    </div>
-                  )}
-                  {tags.length > 0 && (
-                    <div style={st.tagRow}>
-                      {tags.map(t => (
-                        <span key={t} style={st.tag}>{t}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Scenes */}
-                  {sceneErrors[ch.id] ? (
-                    <div style={st.fetchError}>⚠ {sceneErrors[ch.id]}</div>
-                  ) : chScenes.length === 0 ? (
-                    <div style={st.sceneEmpty}>尚無場景</div>
-                  ) : (
-                    chScenes.map(sc => {
-                      const scActive = sc.id === currentSceneId
-                      return (
-                        <div
-                          key={sc.id}
-                          style={{
-                            ...st.sceneRow,
-                            background:   scActive ? T.greenDim + '60' : 'transparent',
-                            borderLeft:   `2px solid ${scActive ? T.green : 'transparent'}`,
-                            color:        scActive ? T.green : T.textMuted,
-                          }}
-                          onClick={() => loadScene(sc, ch.id)}
-                        >
-                          <span style={st.sceneOrder}>#{sc.order}</span>
-                          <span style={st.sceneSummary}>
-                            {sc.summary || sc.emotional_tone || '場景'}
-                          </span>
-                          <button
-                            style={st.delBtn}
-                            onClick={e => deleteScene(e, sc, ch.id)}
-                            title="刪除場景"
-                          >×</button>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              )}
-            </div>
+            </>
           )
-        })}
+        })()}
+
+        {/* Flat list (no arcs defined) */}
+        {!loadError && arcs.length === 0 && chapters.map(ch => renderChapter(ch))}
 
         {/* ── Inline new chapter form ───────────────────── */}
         {showNewForm && (
@@ -459,6 +495,17 @@ const st: Record<string, React.CSSProperties> = {
     background: 'transparent', border: 'none', color: T.textMuted,
     cursor: 'pointer', fontSize: 12, padding: '0 2px', flexShrink: 0, lineHeight: 1,
     opacity: 0.5,
+  },
+
+  // Arc / Act group headers
+  arcHeader: {
+    fontSize: 9, fontWeight: 700, color: T.textMuted,
+    textTransform: 'uppercase' as const, letterSpacing: '0.1em',
+    padding: '8px 12px 3px', borderTop: `1px solid ${T.border}`,
+  },
+  actHeader: {
+    fontSize: font.sizes.xs, color: T.accent, fontWeight: 600,
+    padding: '4px 12px 3px 20px',
   },
 
   // New chapter form

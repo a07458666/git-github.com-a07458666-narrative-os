@@ -37,6 +37,7 @@ class ChapterUpdate(BaseModel):
     narrative_function: Optional[str] = None
     status: Optional[str] = None
     word_count: Optional[int] = None
+    act_id: Optional[str] = None
 
 
 async def _require_project(project_id: str) -> dict:

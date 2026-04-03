@@ -52,6 +52,7 @@ async def init_schema() -> None:
         "CREATE CONSTRAINT scene_id IF NOT EXISTS FOR (n:Scene) REQUIRE n.id IS UNIQUE",
         "CREATE CONSTRAINT chapter_id IF NOT EXISTS FOR (n:Chapter) REQUIRE n.id IS UNIQUE",
         "CREATE CONSTRAINT story_arc_id IF NOT EXISTS FOR (n:StoryArc) REQUIRE n.id IS UNIQUE",
+        "CREATE CONSTRAINT act_id IF NOT EXISTS FOR (n:Act) REQUIRE n.id IS UNIQUE",
         "CREATE CONSTRAINT world_event_id IF NOT EXISTS FOR (n:WorldEvent) REQUIRE n.id IS UNIQUE",
         "CREATE CONSTRAINT note_id IF NOT EXISTS FOR (n:Note) REQUIRE n.id IS UNIQUE",
     ]

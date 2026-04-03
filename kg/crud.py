@@ -9,6 +9,7 @@ from typing import Optional
 from .client import get_driver
 from .schema import (
     ArtifactNode,
+    ActNode,
     CharacterNode,
     CharacterRelationshipEdge,
     ChapterNode,
@@ -332,11 +333,46 @@ async def list_world_events(project_id: str) -> list[dict]:
 
 
 # ─────────────────────────────────────────────
-# StoryArc / Chapter / Scene
+# StoryArc / Act / Chapter / Scene
 # ─────────────────────────────────────────────
 
 async def create_story_arc(arc: StoryArcNode) -> dict:
     return await _merge_node("StoryArc", _to_props(arc))
+
+
+async def get_story_arc(arc_id: str) -> Optional[dict]:
+    return await _get_node("StoryArc", arc_id)
+
+
+async def list_story_arcs(project_id: str) -> list[dict]:
+    return await _list_nodes("StoryArc", project_id)
+
+
+async def delete_story_arc(arc_id: str) -> bool:
+    return await _delete_node("StoryArc", arc_id)
+
+
+async def create_act(act: ActNode) -> dict:
+    return await _merge_node("Act", _to_props(act))
+
+
+async def get_act(act_id: str) -> Optional[dict]:
+    return await _get_node("Act", act_id)
+
+
+async def list_acts_by_arc(arc_id: str) -> list[dict]:
+    """List all acts for a given story arc, ordered by act.order."""
+    driver = get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            "MATCH (n:Act {story_arc_id: $arc_id}) RETURN properties(n) AS node ORDER BY n.order",
+            arc_id=arc_id,
+        )
+        return [r["node"] async for r in result]
+
+
+async def delete_act(act_id: str) -> bool:
+    return await _delete_node("Act", act_id)
 
 
 async def create_chapter(ch: ChapterNode) -> dict:
