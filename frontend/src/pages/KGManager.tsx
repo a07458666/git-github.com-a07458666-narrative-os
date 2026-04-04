@@ -353,6 +353,8 @@ export default function KGManager() {
       <div style={styles.topBar}>
         <button style={styles.backBtn} onClick={() => navigate(`/workspace/${projectId}`)}>← Workspace</button>
         <span style={styles.title}>KG Manager{projectName ? ` — ${projectName}` : ''}</span>
+        <div style={{ flex: 1 }} />
+        <button style={btn.ghost} onClick={() => navigate(`/project/${projectId}/timeline`)}>📅 時間軸</button>
       </div>
 
       {/* Tab bar */}

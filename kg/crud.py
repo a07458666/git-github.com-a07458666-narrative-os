@@ -633,3 +633,75 @@ async def create_note(n: NoteNode) -> dict:
 
 async def list_notes(project_id: str) -> list[dict]:
     return await _list_nodes("Note", project_id)
+
+
+# ─────────────────────────────────────────────
+# Timeline (chapters + scenes, enriched)
+# ─────────────────────────────────────────────
+
+async def get_timeline(project_id: str) -> dict:
+    """
+    Return all story-structure data for timeline visualisation:
+      chapters (ordered), scenes (grouped by chapter), arcs, acts,
+      plus id→name mappings for characters and locations.
+    """
+    driver = get_driver()
+    async with driver.session() as session:
+        # 1. Chapters (ordered)
+        r = await session.run(
+            "MATCH (n:Chapter {project_id: $pid}) RETURN properties(n) AS node ORDER BY n.order",
+            pid=project_id,
+        )
+        chapters: list[dict] = [row["node"] async for row in r]
+
+        # 2. All scenes for these chapters in one query
+        scenes: list[dict] = []
+        if chapters:
+            chapter_ids = [c["id"] for c in chapters]
+            r = await session.run(
+                "MATCH (n:Scene) WHERE n.chapter_id IN $cids"
+                " RETURN properties(n) AS node ORDER BY n.chapter_id, n.order",
+                cids=chapter_ids,
+            )
+            scenes = [row["node"] async for row in r]
+
+        # 3. StoryArcs
+        r = await session.run(
+            "MATCH (n:StoryArc {project_id: $pid}) RETURN properties(n) AS node ORDER BY n.id",
+            pid=project_id,
+        )
+        arcs: list[dict] = [row["node"] async for row in r]
+
+        # 4. Acts (keyed to arc_ids of this project)
+        acts: list[dict] = []
+        if arcs:
+            arc_ids = [a["id"] for a in arcs]
+            r = await session.run(
+                "MATCH (n:Act) WHERE n.story_arc_id IN $aids"
+                " RETURN properties(n) AS node ORDER BY n.order",
+                aids=arc_ids,
+            )
+            acts = [row["node"] async for row in r]
+
+        # 5. Character id → name (for POV resolution)
+        r = await session.run(
+            "MATCH (n:Character {project_id: $pid}) RETURN n.id AS id, n.name AS name",
+            pid=project_id,
+        )
+        characters: list[dict] = [{"id": row["id"], "name": row["name"]} async for row in r]
+
+        # 6. Location id → name (for SET_IN resolution)
+        r = await session.run(
+            "MATCH (n:Location {project_id: $pid}) RETURN n.id AS id, n.name AS name",
+            pid=project_id,
+        )
+        locations: list[dict] = [{"id": row["id"], "name": row["name"]} async for row in r]
+
+        return {
+            "chapters": chapters,
+            "scenes": scenes,
+            "arcs": arcs,
+            "acts": acts,
+            "characters": characters,
+            "locations": locations,
+        }
