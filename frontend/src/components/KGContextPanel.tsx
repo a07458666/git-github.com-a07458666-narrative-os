@@ -71,25 +71,29 @@ export default function KGContextPanel({ projectId, tab, onInject }: Props) {
   const [locations, setLocations] = useState<Entity[]>([])
   const [threads, setThreads]     = useState<Entity[]>([])
   const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState<string | null>(null)
 
   useEffect(() => {
     if (!projectId) return
     setLoading(true)
+    setError(null)
     const base = `/api/projects/${projectId}/kg`
     const fetches: Promise<void>[] = []
 
     if (tab === 'chars') {
-      fetches.push(fetch(`${base}/characters`).then(r => r.json()).then(setChars))
+      fetches.push(fetch(`${base}/characters`).then(r => { if (!r.ok) throw new Error(); return r.json() }).then(setChars))
     } else if (tab === 'world') {
       fetches.push(
-        fetch(`${base}/factions`).then(r => r.json()).then(setFactions),
-        fetch(`${base}/locations`).then(r => r.json()).then(setLocations),
+        fetch(`${base}/factions`).then(r => { if (!r.ok) throw new Error(); return r.json() }).then(setFactions),
+        fetch(`${base}/locations`).then(r => { if (!r.ok) throw new Error(); return r.json() }).then(setLocations),
       )
     } else if (tab === 'plot') {
-      fetches.push(fetch(`${base}/threads`).then(r => r.json()).then(setThreads))
+      fetches.push(fetch(`${base}/threads`).then(r => { if (!r.ok) throw new Error(); return r.json() }).then(setThreads))
     }
 
-    Promise.all(fetches).finally(() => setLoading(false))
+    Promise.all(fetches)
+      .catch(() => setError('載入失敗，請重試'))
+      .finally(() => setLoading(false))
   }, [projectId, tab])
 
   const title = tab === 'chars' ? '👤 角色' : tab === 'world' ? '🌍 世界' : '📖 伏筆'
@@ -106,7 +110,8 @@ export default function KGContextPanel({ projectId, tab, onInject }: Props) {
       <div style={st.hint}>點擊 tag 將名稱帶入 Director</div>
 
       <div style={st.body}>
-        {tab === 'chars' && (
+        {error && <FetchError message={error} />}
+        {!error && tab === 'chars' && (
           chars.length === 0 && !loading
             ? <Empty />
             : <Section title="角色">
@@ -117,7 +122,7 @@ export default function KGContextPanel({ projectId, tab, onInject }: Props) {
               </Section>
         )}
 
-        {tab === 'world' && (
+        {!error && tab === 'world' && (
           factions.length === 0 && locations.length === 0 && !loading
             ? <Empty />
             : <>
@@ -140,7 +145,7 @@ export default function KGContextPanel({ projectId, tab, onInject }: Props) {
               </>
         )}
 
-        {tab === 'plot' && (
+        {!error && tab === 'plot' && (
           threads.length === 0 && !loading
             ? <Empty />
             : <Section title="伏筆">
@@ -158,6 +163,10 @@ export default function KGContextPanel({ projectId, tab, onInject }: Props) {
 
 function Empty() {
   return <div style={{ fontSize: font.sizes.sm, color: T.textMuted, padding: '12px 0' }}>尚無資料</div>
+}
+
+function FetchError({ message }: { message: string }) {
+  return <div style={{ fontSize: font.sizes.sm, color: '#f87171', padding: '12px 0' }}>⚠ {message}</div>
 }
 
 // ── Styles ────────────────────────────────────────────────────

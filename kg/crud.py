@@ -9,6 +9,7 @@ from typing import Optional
 from .client import get_driver
 from .schema import (
     ArtifactNode,
+    ActNode,
     CharacterNode,
     CharacterRelationshipEdge,
     ChapterNode,
@@ -332,11 +333,46 @@ async def list_world_events(project_id: str) -> list[dict]:
 
 
 # ─────────────────────────────────────────────
-# StoryArc / Chapter / Scene
+# StoryArc / Act / Chapter / Scene
 # ─────────────────────────────────────────────
 
 async def create_story_arc(arc: StoryArcNode) -> dict:
     return await _merge_node("StoryArc", _to_props(arc))
+
+
+async def get_story_arc(arc_id: str) -> Optional[dict]:
+    return await _get_node("StoryArc", arc_id)
+
+
+async def list_story_arcs(project_id: str) -> list[dict]:
+    return await _list_nodes("StoryArc", project_id)
+
+
+async def delete_story_arc(arc_id: str) -> bool:
+    return await _delete_node("StoryArc", arc_id)
+
+
+async def create_act(act: ActNode) -> dict:
+    return await _merge_node("Act", _to_props(act))
+
+
+async def get_act(act_id: str) -> Optional[dict]:
+    return await _get_node("Act", act_id)
+
+
+async def list_acts_by_arc(arc_id: str) -> list[dict]:
+    """List all acts for a given story arc, ordered by act.order."""
+    driver = get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            "MATCH (n:Act {story_arc_id: $arc_id}) RETURN properties(n) AS node ORDER BY n.order",
+            arc_id=arc_id,
+        )
+        return [r["node"] async for r in result]
+
+
+async def delete_act(act_id: str) -> bool:
+    return await _delete_node("Act", act_id)
 
 
 async def create_chapter(ch: ChapterNode) -> dict:
@@ -391,19 +427,25 @@ async def get_kg_graph(project_id: str) -> dict:
     Return all nodes and edges for a project as a graph-ready dict:
       { "nodes": [...], "links": [...] }
 
-    Nodes: Character, Faction, Location, PlotThread, Artifact
-    Edges:
+    World nodes:   Character, Faction, Location, PlotThread, Artifact
+    Story nodes:   StoryArc, Act, Chapter (with summary)
+    World edges:
       - RELATES_TO between Characters
       - FACTION_RELATES_TO between Factions
-      - MEMBER_OF synthetic edge: Character → Faction (via faction_id)
-      - ARTIFACT_OWNED synthetic edge: Artifact → Character (via current_owner)
+      - MEMBER_OF synthetic: Character → Faction (via faction_id)
+      - OWNED_BY synthetic: Artifact → Character (via current_owner)
+    Story edges:
+      - IN_ARC synthetic: StoryArc → Act (via act.story_arc_id)
+      - IN_ACT synthetic: Act → Chapter (via chapter.act_id)
+      - POV_OF synthetic: Chapter → Character (via chapter.pov_character name match)
+      - SET_IN synthetic: Chapter → Location (via scene.location_id)
     """
     driver = get_driver()
     async with driver.session() as session:
         nodes: list[dict] = []
         links: list[dict] = []
 
-        # ── Collect nodes ──────────────────────────────────────
+        # ── World nodes ────────────────────────────────────────
         for label in ("Character", "Faction", "Location", "PlotThread", "Artifact"):
             result = await session.run(
                 f"MATCH (n:{label} {{project_id: $pid}}) RETURN properties(n) AS p",
@@ -414,7 +456,49 @@ async def get_kg_graph(project_id: str) -> dict:
                 nodes.append({"id": p["id"], "label": p.get("name", p["id"]),
                                "type": label, **p})
 
-        # ── Character RELATES_TO edges ─────────────────────────
+        # ── Story structure nodes ──────────────────────────────
+        # StoryArcs
+        arc_ids: list[str] = []
+        result = await session.run(
+            "MATCH (n:StoryArc {project_id: $pid}) RETURN properties(n) AS p",
+            pid=project_id,
+        )
+        async for record in result:
+            p = dict(record["p"])
+            arc_ids.append(p["id"])
+            nodes.append({"id": p["id"], "label": p.get("name", p["id"]),
+                           "type": "StoryArc", **p})
+
+        # Acts (no project_id — filter via arc IDs)
+        if arc_ids:
+            result = await session.run(
+                "MATCH (n:Act) WHERE n.story_arc_id IN $arc_ids RETURN properties(n) AS p ORDER BY n.order",
+                arc_ids=arc_ids,
+            )
+            async for record in result:
+                p = dict(record["p"])
+                nodes.append({"id": p["id"], "label": p.get("name", p["id"]),
+                               "type": "Act", **p})
+
+        # Chapters (include summary for tooltip)
+        result = await session.run(
+            "MATCH (n:Chapter {project_id: $pid}) RETURN properties(n) AS p ORDER BY n.order",
+            pid=project_id,
+        )
+        async for record in result:
+            p = dict(record["p"])
+            nodes.append({
+                "id":      p["id"],
+                "label":   f"Ch.{p.get('order', '?')} {p.get('title', '')}",
+                "type":    "Chapter",
+                "summary": p.get("summary", ""),
+                "status":  p.get("status", ""),
+                "order":   p.get("order", 0),
+                **p,
+            })
+
+        # ── World edges ────────────────────────────────────────
+        # Character RELATES_TO
         result = await session.run(
             """
             MATCH (a:Character {project_id: $pid})-[r:RELATES_TO]->(b:Character {project_id: $pid})
@@ -429,7 +513,7 @@ async def get_kg_graph(project_id: str) -> dict:
                 "trust": record["trust"] or 0,
             })
 
-        # ── Faction FACTION_RELATES_TO edges ──────────────────
+        # Faction FACTION_RELATES_TO
         result = await session.run(
             """
             MATCH (a:Faction {project_id: $pid})-[r:FACTION_RELATES_TO]->(b:Faction {project_id: $pid})
@@ -443,7 +527,7 @@ async def get_kg_graph(project_id: str) -> dict:
                 "type": "FACTION_RELATES_TO", "label": record["rel_type"] or "",
             })
 
-        # ── Synthetic: Character → Faction (MEMBER_OF) ────────
+        # Synthetic: Character → Faction (MEMBER_OF)
         result = await session.run(
             """
             MATCH (c:Character {project_id: $pid})
@@ -459,7 +543,7 @@ async def get_kg_graph(project_id: str) -> dict:
                 "type": "MEMBER_OF", "label": "member of",
             })
 
-        # ── Synthetic: Artifact → Character (OWNED_BY) ────────
+        # Synthetic: Artifact → Character (OWNED_BY)
         result = await session.run(
             """
             MATCH (a:Artifact {project_id: $pid})
@@ -475,6 +559,67 @@ async def get_kg_graph(project_id: str) -> dict:
                 "type": "OWNED_BY", "label": "owned by",
             })
 
+        # ── Story structure edges ──────────────────────────────
+        # StoryArc → Act (IN_ARC)
+        if arc_ids:
+            result = await session.run(
+                "MATCH (a:Act) WHERE a.story_arc_id IN $arc_ids RETURN a.story_arc_id AS arc_id, a.id AS act_id",
+                arc_ids=arc_ids,
+            )
+            async for record in result:
+                links.append({
+                    "source": record["arc_id"], "target": record["act_id"],
+                    "type": "IN_ARC", "label": "contains",
+                })
+
+        # Act → Chapter (IN_ACT)
+        result = await session.run(
+            """
+            MATCH (ch:Chapter {project_id: $pid})
+            WHERE ch.act_id IS NOT NULL AND ch.act_id <> ''
+            RETURN ch.act_id AS act_id, ch.id AS ch_id
+            """,
+            pid=project_id,
+        )
+        async for record in result:
+            links.append({
+                "source": record["act_id"], "target": record["ch_id"],
+                "type": "IN_ACT", "label": "contains",
+            })
+
+        # Chapter → POV Character (POV_OF)
+        result = await session.run(
+            """
+            MATCH (ch:Chapter {project_id: $pid})
+            WHERE ch.pov_character IS NOT NULL AND ch.pov_character <> ''
+            MATCH (c:Character {project_id: $pid, name: ch.pov_character})
+            RETURN ch.id AS ch_id, c.id AS c_id
+            """,
+            pid=project_id,
+        )
+        async for record in result:
+            links.append({
+                "source": record["ch_id"], "target": record["c_id"],
+                "type": "POV_OF", "label": "POV",
+            })
+
+        # Chapter → Location via scenes (SET_IN)
+        result = await session.run(
+            """
+            MATCH (ch:Chapter {project_id: $pid})
+            MATCH (s:Scene {chapter_id: ch.id})
+            WHERE s.location_id IS NOT NULL AND s.location_id <> ''
+            MATCH (l:Location {id: s.location_id})
+            RETURN DISTINCT ch.id AS ch_id, l.id AS loc_id
+            """,
+            pid=project_id,
+        )
+        async for record in result:
+            links.append({
+                "source": record["ch_id"], "target": record["loc_id"],
+                "type": "SET_IN", "label": "set in",
+            })
+
     return {"nodes": nodes, "links": links}
 
 
@@ -488,3 +633,75 @@ async def create_note(n: NoteNode) -> dict:
 
 async def list_notes(project_id: str) -> list[dict]:
     return await _list_nodes("Note", project_id)
+
+
+# ─────────────────────────────────────────────
+# Timeline (chapters + scenes, enriched)
+# ─────────────────────────────────────────────
+
+async def get_timeline(project_id: str) -> dict:
+    """
+    Return all story-structure data for timeline visualisation:
+      chapters (ordered), scenes (grouped by chapter), arcs, acts,
+      plus id→name mappings for characters and locations.
+    """
+    driver = get_driver()
+    async with driver.session() as session:
+        # 1. Chapters (ordered)
+        r = await session.run(
+            "MATCH (n:Chapter {project_id: $pid}) RETURN properties(n) AS node ORDER BY n.order",
+            pid=project_id,
+        )
+        chapters: list[dict] = [row["node"] async for row in r]
+
+        # 2. All scenes for these chapters in one query
+        scenes: list[dict] = []
+        if chapters:
+            chapter_ids = [c["id"] for c in chapters]
+            r = await session.run(
+                "MATCH (n:Scene) WHERE n.chapter_id IN $cids"
+                " RETURN properties(n) AS node ORDER BY n.chapter_id, n.order",
+                cids=chapter_ids,
+            )
+            scenes = [row["node"] async for row in r]
+
+        # 3. StoryArcs
+        r = await session.run(
+            "MATCH (n:StoryArc {project_id: $pid}) RETURN properties(n) AS node ORDER BY n.id",
+            pid=project_id,
+        )
+        arcs: list[dict] = [row["node"] async for row in r]
+
+        # 4. Acts (keyed to arc_ids of this project)
+        acts: list[dict] = []
+        if arcs:
+            arc_ids = [a["id"] for a in arcs]
+            r = await session.run(
+                "MATCH (n:Act) WHERE n.story_arc_id IN $aids"
+                " RETURN properties(n) AS node ORDER BY n.order",
+                aids=arc_ids,
+            )
+            acts = [row["node"] async for row in r]
+
+        # 5. Character id → name (for POV resolution)
+        r = await session.run(
+            "MATCH (n:Character {project_id: $pid}) RETURN n.id AS id, n.name AS name",
+            pid=project_id,
+        )
+        characters: list[dict] = [{"id": row["id"], "name": row["name"]} async for row in r]
+
+        # 6. Location id → name (for SET_IN resolution)
+        r = await session.run(
+            "MATCH (n:Location {project_id: $pid}) RETURN n.id AS id, n.name AS name",
+            pid=project_id,
+        )
+        locations: list[dict] = [{"id": row["id"], "name": row["name"]} async for row in r]
+
+        return {
+            "chapters": chapters,
+            "scenes": scenes,
+            "arcs": arcs,
+            "acts": acts,
+            "characters": characters,
+            "locations": locations,
+        }

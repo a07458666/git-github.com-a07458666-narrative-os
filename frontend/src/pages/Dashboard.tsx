@@ -73,6 +73,10 @@ export default function Dashboard() {
                       style={st.actionLink}
                       onClick={() => navigate(`/project/${p.id}/kg`)}
                     >KG</span>
+                    <span
+                      style={st.actionLink}
+                      onClick={() => navigate(`/project/${p.id}/timeline`)}
+                    >📅</span>
                     <a style={st.actionLink} href={`/api/projects/${p.id}/export?format=txt`} download>↓ TXT</a>
                     <a style={st.actionLink} href={`/api/projects/${p.id}/export?format=md`} download>↓ MD</a>
                   </div>
