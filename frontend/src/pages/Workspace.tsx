@@ -54,11 +54,16 @@ export default function Workspace() {
       case 'scene_chunk':
         store.appendSceneChunk(msg.content)
         break
-      case 'scene_end':
+      case 'scene_end': {
         store.finalizeScene(msg.char_count)
-        store.addMessage({ role: 'system', content: `Draft saved → ${msg.draft_path}` })
+        const filename = msg.draft_path?.split('/').pop() ?? msg.draft_path
+        store.addMessage({
+          role: 'system',
+          content: `場景生成完成（${msg.char_count?.toLocaleString() ?? 0} 字）\n草稿已儲存：${filename}`,
+        })
         store.setPhase('kg_review')
         break
+      }
       case 'kg_suggestions':
         store.setPendingKGChanges(msg.changes)
         store.addMessage({ role: 'agent', content: 'Scene analysed. Review KG changes below.' })

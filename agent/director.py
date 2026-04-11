@@ -19,12 +19,13 @@ WebSocket version (Week 4) will reuse this class with a different I/O adapter.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import AsyncIterator
 
 import litellm
 
-from .config import TASK_MODEL_MAP, stream_chat
+from .config import TASK_MODEL_MAP, chat, stream_chat
 from .logger import AgentLogger
 from kg import crud
 from kg.schema import PlotThreadNode
@@ -282,6 +283,50 @@ class StoryDirectorAgent:
         self.logger.log("kg_suggest", model_used=self._model, latency_ms=latency)
 
         return response.choices[0].message.content or "{}"
+
+    # ── Chapter summary ───────────────────────────────────────
+
+    async def generate_chapter_summary(self, chapter_id: str) -> str:
+        """
+        Generate a concise AI summary for a chapter based on its scene content.
+        Strips HTML from TipTap-generated content before passing to the LLM.
+        Returns empty string if the chapter has no scenes with content.
+        """
+        scenes = await crud.list_scenes_by_chapter(chapter_id)
+        if not scenes:
+            return ""
+
+        scene_texts: list[str] = []
+        for i, sc in enumerate(scenes, 1):
+            raw = sc.get("content", "") or sc.get("summary", "")
+            text = re.sub(r"<[^>]+>", " ", raw).strip()
+            text = re.sub(r"\s+", " ", text)
+            if text:
+                scene_texts.append(f"Scene {i}: {text}")
+
+        if not scene_texts:
+            return ""
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a story editor. Write a concise chapter summary (2–4 sentences) "
+                    "that captures the key events, emotional arc, and story significance. "
+                    "Be specific and concrete. Reply in the same language as the scenes."
+                ),
+            },
+            {
+                "role": "user",
+                "content": "Summarise this chapter:\n\n" + "\n\n".join(scene_texts),
+            },
+        ]
+
+        self.logger.start_timer("summary")
+        summary = await chat("summary", messages, temperature=0.3, max_tokens=256)
+        latency = self.logger.elapsed_ms("summary")
+        self.logger.log("chapter_summary", model_used=TASK_MODEL_MAP.get("summary", ""), latency_ms=latency)
+        return summary.strip()
 
     # ── Phase 4: Apply confirmed KG updates ──────────────────
 

@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from typing import Optional
 
 from kg import crud
+from agent.director import StoryDirectorAgent
+from agent.logger import AgentLogger
 
 router = APIRouter(prefix="/api/projects", tags=["chapters"])
 
@@ -35,6 +37,7 @@ class ChapterUpdate(BaseModel):
     narrative_function: Optional[str] = None
     status: Optional[str] = None
     word_count: Optional[int] = None
+    act_id: Optional[str] = None
 
 
 async def _require_project(project_id: str) -> dict:
@@ -99,3 +102,16 @@ async def delete_chapter(project_id: str, chapter_id: str) -> dict:
     await _require_chapter(chapter_id)
     await crud.delete_chapter(chapter_id)
     return {"deleted": True}
+
+
+@router.post("/{project_id}/chapters/{chapter_id}/summary")
+async def generate_summary(project_id: str, chapter_id: str) -> dict:
+    """Generate an AI summary for a chapter from its scene content and persist it."""
+    await _require_project(project_id)
+    await _require_chapter(chapter_id)
+    agent = StoryDirectorAgent(project_id, AgentLogger())
+    summary = await agent.generate_chapter_summary(chapter_id)
+    if not summary:
+        raise HTTPException(status_code=422, detail="No scene content found to summarise")
+    await crud.update_node("Chapter", chapter_id, {"summary": summary})
+    return {"summary": summary}

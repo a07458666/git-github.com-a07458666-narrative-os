@@ -14,6 +14,7 @@ interface Issue {
 interface Props {
   issues:   Issue[]
   loading:  boolean
+  error?:   string | null
   onDismiss: () => void
 }
 
@@ -31,7 +32,19 @@ const SEV_COLOR: Record<string, string> = {
   warning: '#fbbf24',
 }
 
-export default function ConsistencyPanel({ issues, loading, onDismiss }: Props) {
+export default function ConsistencyPanel({ issues, loading, error, onDismiss }: Props) {
+  if (!loading && error) {
+    return (
+      <div style={st.wrap}>
+        <div style={st.header}>
+          <span style={st.title}>⚡ 一致性檢查</span>
+          <button style={st.close} onClick={onDismiss}>✕</button>
+        </div>
+        <div style={st.errMsg}>⚠ {error}</div>
+      </div>
+    )
+  }
+
   if (!loading && issues.length === 0) {
     return (
       <div style={st.wrap}>
@@ -105,7 +118,8 @@ const st: Record<string, React.CSSProperties> = {
     marginLeft: 'auto', background: 'transparent', border: 'none',
     color: '#555', cursor: 'pointer', fontSize: 13, padding: '2px 6px',
   },
-  ok:   { padding: '16px 14px', color: '#4ade80', fontSize: 13 },
+  ok:     { padding: '16px 14px', color: '#4ade80', fontSize: 13 },
+  errMsg: { padding: '16px 14px', color: '#f87171', fontSize: 13 },
   list: { overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8 },
   card: {
     borderLeft: '3px solid #555', paddingLeft: 10, paddingTop: 6, paddingBottom: 6,
