@@ -348,6 +348,7 @@ export default function Timeline() {
       <div style={sc.toolbar}>
         <button style={btn.ghost} onClick={() => navigate(`/project/${projectId}/kg`)}>← KG</button>
         <button style={btn.ghost} onClick={() => navigate(`/workspace/${projectId}`)}>✏ Workspace</button>
+        <button style={btn.ghost} onClick={() => navigate(`/project/${projectId}/health`)}>🩺 健康度</button>
         <div style={sc.sep} />
         <span style={sc.title}>📅 故事時間軸</span>
         {projectName && <span style={sc.projName}>{projectName}</span>}

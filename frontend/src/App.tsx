@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard'
 import Workspace from './pages/Workspace'
 import KGManager from './pages/KGManager'
 import Timeline from './pages/Timeline'
+import StoryHealth from './pages/StoryHealth'
 import LogViewer from './pages/LogViewer'
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/workspace/:projectId" element={<Workspace />} />
         <Route path="/project/:projectId/kg" element={<KGManager />} />
         <Route path="/project/:projectId/timeline" element={<Timeline />} />
+        <Route path="/project/:projectId/health" element={<StoryHealth />} />
         <Route path="/logs" element={<LogViewer />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

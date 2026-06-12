@@ -705,3 +705,94 @@ async def get_timeline(project_id: str) -> dict:
             "characters": characters,
             "locations": locations,
         }
+
+
+# ─────────────────────────────────────────────
+# Story Health (pacing / arcs / threads)
+# ─────────────────────────────────────────────
+
+async def get_story_health(project_id: str) -> dict:
+    """
+    Aggregate data for the Story Health dashboard:
+      - pacing:  per-chapter tension stats derived from SceneNode.tension_level
+      - arcs:    characters with arc_start/arc_end + which chapters they appear as POV
+      - threads: plot-thread lifecycle with planted/resolved chapter references
+    """
+    driver = get_driver()
+    async with driver.session() as session:
+        # 1. Pacing — chapter-level tension aggregates
+        r = await session.run(
+            """
+            MATCH (ch:Chapter {project_id: $pid})
+            OPTIONAL MATCH (sc:Scene {chapter_id: ch.id})
+            WITH ch,
+                 avg(toFloat(sc.tension_level)) AS avg_tension,
+                 max(sc.tension_level)           AS max_tension,
+                 min(sc.tension_level)           AS min_tension,
+                 count(sc)                       AS scene_count
+            RETURN ch.id AS id, ch.order AS order, ch.title AS title,
+                   ch.status AS status, ch.narrative_function AS narrative_function,
+                   avg_tension, max_tension, min_tension, scene_count
+            ORDER BY ch.order
+            """,
+            pid=project_id,
+        )
+        pacing: list[dict] = [{k: row[k] for k in row.keys()} async for row in r]
+
+        # 2. Character arcs — only characters that have arc_start AND arc_end filled
+        r = await session.run(
+            """
+            MATCH (c:Character {project_id: $pid})
+            WHERE c.arc_start IS NOT NULL AND c.arc_start <> ''
+              AND c.arc_end   IS NOT NULL AND c.arc_end   <> ''
+            OPTIONAL MATCH (sc:Scene)
+            WHERE sc.pov_character = c.name OR sc.pov_character = c.id
+            OPTIONAL MATCH (ch:Chapter {id: sc.chapter_id})
+            WITH c, collect(DISTINCT ch.order) AS chapter_orders
+            RETURN c.id AS id, c.name AS name,
+                   c.arc_start AS arc_start, c.arc_end AS arc_end,
+                   c.current_state AS current_state,
+                   chapter_orders
+            ORDER BY c.name
+            """,
+            pid=project_id,
+        )
+        arcs: list[dict] = [{k: row[k] for k in row.keys()} async for row in r]
+
+        # 3. Plot-thread lifecycle with chapter references
+        r = await session.run(
+            """
+            MATCH (pt:PlotThread {project_id: $pid})
+            OPTIONAL MATCH (sc_p:Scene  {id: pt.planted_in})
+            OPTIONAL MATCH (ch_p:Chapter {id: sc_p.chapter_id})
+            OPTIONAL MATCH (sc_r:Scene  {id: pt.resolution_scene})
+            OPTIONAL MATCH (ch_r:Chapter {id: sc_r.chapter_id})
+            RETURN pt.id AS id, pt.name AS name,
+                   pt.status AS status, pt.description AS description,
+                   pt.planted_at AS planted_at,
+                   ch_p.order AS planted_chapter_order,
+                   ch_p.title AS planted_chapter_title,
+                   ch_r.order AS resolved_chapter_order,
+                   ch_r.title AS resolved_chapter_title
+            ORDER BY ch_p.order
+            """,
+            pid=project_id,
+        )
+        threads: list[dict] = [{k: row[k] for k in row.keys()} async for row in r]
+
+        total_scenes   = sum((p.get("scene_count") or 0) for p in pacing)
+        active_threads  = sum(1 for t in threads if t.get("status") == "active")
+        resolved_threads = sum(1 for t in threads if t.get("status") == "resolved")
+
+        return {
+            "pacing": pacing,
+            "arcs": arcs,
+            "threads": threads,
+            "stats": {
+                "total_chapters":  len(pacing),
+                "total_scenes":    total_scenes,
+                "active_threads":  active_threads,
+                "resolved_threads": resolved_threads,
+                "arc_count":       len(arcs),
+            },
+        }

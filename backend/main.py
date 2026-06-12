@@ -28,6 +28,7 @@ from backend.routes.chapters import router as chapters_router  # noqa: E402
 from backend.routes.scenes import router as scenes_router  # noqa: E402
 from backend.routes.arcs import router as arcs_router  # noqa: E402
 from backend.routes.timeline import router as timeline_router  # noqa: E402
+from backend.routes.story_health import router as story_health_router  # noqa: E402
 from backend.routes.kg import router as kg_router  # noqa: E402
 from backend.routes.analysis import router as analysis_router  # noqa: E402
 from backend.routes.logs import router as logs_router  # noqa: E402
@@ -64,6 +65,7 @@ app.include_router(chapters_router)
 app.include_router(scenes_router)
 app.include_router(arcs_router)
 app.include_router(timeline_router)
+app.include_router(story_health_router)
 app.include_router(kg_router)
 app.include_router(analysis_router, prefix="/api")
 app.include_router(logs_router)
