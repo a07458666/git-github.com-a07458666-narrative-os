@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { T, font, btn, badge } from '../theme'
 
 // ── Types ────────────────────────────────────────────────────
@@ -475,7 +475,6 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 export default function StoryHealth() {
   const { projectId } = useParams<{ projectId: string }>()
-  const navigate = useNavigate()
 
   const [data, setData]               = useState<HealthData | null>(null)
   const [loading, setLoading]         = useState(false)
@@ -508,10 +507,6 @@ export default function StoryHealth() {
     <div style={sc.page}>
       {/* Toolbar */}
       <div style={sc.toolbar}>
-        <button style={btn.ghost} onClick={() => navigate(`/project/${projectId}/kg`)}>← KG</button>
-        <button style={btn.ghost} onClick={() => navigate(`/project/${projectId}/timeline`)}>📅 時間軸</button>
-        <button style={btn.ghost} onClick={() => navigate(`/workspace/${projectId}`)}>✏ Workspace</button>
-        <div style={sc.sep} />
         <span style={sc.title}>🩺 故事健康度</span>
         {projectName && <span style={sc.projName}>{projectName}</span>}
         <div style={{ flex: 1 }} />
@@ -560,7 +555,7 @@ export default function StoryHealth() {
 
 const sc: Record<string, React.CSSProperties> = {
   page: {
-    display: 'flex', flexDirection: 'column', height: '100vh',
+    display: 'flex', flexDirection: 'column', height: '100%',
     background: T.bgBase, fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden',
   },
   toolbar: {
