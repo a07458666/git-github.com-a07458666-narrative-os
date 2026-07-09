@@ -351,10 +351,7 @@ export default function KGManager() {
     <div style={styles.root}>
       {/* Top bar */}
       <div style={styles.topBar}>
-        <button style={styles.backBtn} onClick={() => navigate(`/workspace/${projectId}`)}>← Workspace</button>
-        <span style={styles.title}>KG Manager{projectName ? ` — ${projectName}` : ''}</span>
-        <div style={{ flex: 1 }} />
-        <button style={btn.ghost} onClick={() => navigate(`/project/${projectId}/timeline`)}>📅 時間軸</button>
+        <span style={styles.title}>🌍 世界設定{projectName ? ` — ${projectName}` : ''}</span>
       </div>
 
       {/* Tab bar */}
@@ -425,7 +422,7 @@ const arcSt: Record<string, React.CSSProperties> = {
 
 // ── Styles ────────────────────────────────────────────────────
 const styles: Record<string, React.CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', height: '100vh', background: T.bgBase, overflow: 'hidden' },
+  root: { display: 'flex', flexDirection: 'column', height: '100%', background: T.bgBase, overflow: 'hidden' },
   topBar: {
     height: 48, background: T.bgBase, borderBottom: `1px solid ${T.border}`,
     display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12, flexShrink: 0,

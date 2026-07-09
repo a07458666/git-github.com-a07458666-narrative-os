@@ -32,7 +32,7 @@ export default function Dashboard() {
         {/* Hero */}
         <div style={st.hero}>
           <h1 style={st.heroTitle}>你的 AI 寫作助理</h1>
-          <p style={st.heroSub}>知識圖譜 · 場景生成 · 一致性檢查</p>
+          <p style={st.heroSub}>寫作 · 規劃 · 世界設定 · 故事分析</p>
         </div>
 
         {/* Bento grid */}
@@ -60,7 +60,7 @@ export default function Dashboard() {
                 <div
                   key={p.id}
                   style={st.projectCard}
-                  onClick={() => navigate(`/workspace/${p.id}`)}
+                  onClick={() => navigate(`/project/${p.id}`)}
                 >
                   <div style={st.projectIcon}>📖</div>
                   <div style={st.projectInfo}>
@@ -69,15 +69,7 @@ export default function Dashboard() {
                     {p.genre && <span style={st.genreBadge}>{p.genre}</span>}
                   </div>
                   <div style={st.projectActions} onClick={e => e.stopPropagation()}>
-                    <span
-                      style={st.actionLink}
-                      onClick={() => navigate(`/project/${p.id}/kg`)}
-                    >KG</span>
-                    <span
-                      style={st.actionLink}
-                      onClick={() => navigate(`/project/${p.id}/timeline`)}
-                    >📅</span>
-                    <a style={st.actionLink} href={`/api/projects/${p.id}/export?format=txt`} download>↓ TXT</a>
+                    <span style={st.actionLink} onClick={() => navigate(`/project/${p.id}/write`)}>✏ 寫作</span>
                     <a style={st.actionLink} href={`/api/projects/${p.id}/export?format=md`} download>↓ MD</a>
                   </div>
                 </div>

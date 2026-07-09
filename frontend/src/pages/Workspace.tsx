@@ -106,8 +106,6 @@ export default function Workspace() {
     <div style={st.root}>
       {/* ── Top bar ─────────────────────────────────────────── */}
       <div style={st.topBar}>
-        <button style={btn.ghost} onClick={() => navigate('/')}>← Projects</button>
-        <div style={st.divider} />
         <span style={st.projectName}>{project?.name ?? projectId}</span>
         {project?.summary && (
           <span style={st.kgStat}>
@@ -115,9 +113,6 @@ export default function Workspace() {
           </span>
         )}
         <div style={{ flex: 1 }} />
-        <button style={btn.secondary} onClick={() => navigate(`/project/${projectId}/kg`)}>
-          KG →
-        </button>
         {/* Chat toggle */}
         <button
           style={{ ...btn.ghost, fontSize: 16 }}
@@ -169,7 +164,7 @@ export default function Workspace() {
 }
 
 const st: Record<string, React.CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: T.bgBase },
+  root: { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: T.bgBase },
   topBar: {
     height: 48, background: T.bgBase, borderBottom: `1px solid ${T.border}`,
     display: 'flex', alignItems: 'center', padding: '0 16px', gap: 10, flexShrink: 0,
